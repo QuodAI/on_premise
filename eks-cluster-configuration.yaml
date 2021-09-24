@@ -1,0 +1,57 @@
+---
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: quod-on-premise # This should be the name of the existing cluster.
+  region: ap-southeast-1 # This should be the Amazon region the cluster is in.
+iam:
+  withOIDC: true
+  serviceAccounts:
+  - metadata:
+      name: cluster-autoscaler
+      namespace: kube-system
+      labels: {aws-usage: "cluster-ops"}
+    attachPolicy: `
+      Version: "2012-10-17"
+      Statement:
+      - Effect: Allow
+        Action:
+        - "autoscaling:DescribeAutoScalingGroups"
+        - "autoscaling:DescribeAutoScalingInstances"
+        - "autoscaling:DescribeLaunchConfigurations"
+        - "autoscaling:DescribeTags"
+        - "autoscaling:SetDesiredCapacity"
+        - "autoscaling:TerminateInstanceInAutoScalingGroup"
+        Resource: '*'
+nodeGroups:
+  - name: medium 
+    instanceType: t3.xlarge # 4 core 16 gb RAM instance 
+    volumeSize: 50 
+    minSize: 1 
+    maxSize: 20
+    desiredCapacity: 12
+    iam:
+      withAddonPolicies:
+        autoScaler: true # Required.
+        imageBuilder: true # Required.
+        cloudWatch: false
+    tags:
+      k8s.io/cluster-autoscaler/enabled: 'true'
+  - name: gpu-pool
+    instanceType: g4dn.xlarge # 4 core 16 gb RAM and 1 nvidia gpu instance
+    volumeSize: 50
+    minSize: 1 
+    maxSize: 5 
+    desiredCapacity: 1
+    iam: 
+      withAddonPolicies: 
+        autoScaler: true
+        imageBuilder: true
+        cloudWatch: false
+    labels:
+      hardware-type: NVIDIAGPU
+    taints: 
+      nvidia.com/gpu: "present:NoSchedule" # Required.
+    tags:
+      k8s.io/cluster-autoscaler/enabled: 'true' # Required.
+      accelerator: 'nvidia' # Required.
